@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>VoiceGate</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="eyebrow">Typed stand-in</p>
+        <h1>VoiceGate</h1>
+        <p class="lead">
+          Type an order. It is read back and held. Nothing is placed until you confirm. Fake money only.
+        </p>
+        <p id="status" role="status">Connecting…</p>
+      </header>
+
+      <section class="panel" aria-labelledby="talk-title">
+        <div class="panel-head">
+          <h2 id="talk-title">Conversation</h2>
+          <p id="pending">Nothing is waiting.</p>
+        </div>
+        <ol id="log" aria-live="polite"></ol>
+      </section>
+
+      <form id="composer">
+        <label class="sr" for="line">Say something</label>
+        <input
+          id="line"
+          name="line"
+          autocomplete="off"
+          placeholder="two pizzas, make it three, confirm, cancel"
+        />
+        <button type="submit">Send</button>
+      </form>
+
+      <div class="actions" role="group" aria-label="Actions">
+        <button type="button" data-act="hours">Hours</button>
+        <button type="button" data-act="two">Two pizzas</button>
+        <button type="button" data-act="three">Make it three</button>
+        <button type="button" data-act="confirm" id="confirm">Confirm</button>
+        <button type="button" data-act="cancel" id="cancel">Cancel</button>
+      </div>
+      <div class="actions secondary" role="group" aria-label="Demo extras">
+        <button type="button" data-act="menu">Menu</button>
+        <button type="button" data-act="twenty">Twenty pizzas</button>
+        <button type="button" data-act="trap">Trap: get order of twenty</button>
+      </div>
+
+      <section class="panel" aria-labelledby="audit-title">
+        <h2 id="audit-title">Audit log</h2>
+        <pre id="audit">Audit log is empty.</pre>
+      </section>
+    </main>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

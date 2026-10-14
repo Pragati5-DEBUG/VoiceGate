@@ -1,0 +1,29 @@
+{
+  "name": "voicegate",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "VoiceGate cafe server: a Streamable HTTP MCP server for the Alexa+ hackathon.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "cafe": "tsx cafe-server/src/index.ts",
+    "proxy": "tsx proxy/src/index.ts",
+    "check": "tsx scripts/check-get-hours.ts",
+    "check:proxy": "tsx scripts/check-proxy.ts",
+    "check:page": "tsx scripts/check-page.ts"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "express": "^5.2.1",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.4",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}

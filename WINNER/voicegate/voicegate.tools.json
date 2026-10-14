@@ -1,0 +1,4 @@
+{
+  "default": "confirm",
+  "readOnly": ["get_hours", "get_menu"]
+}
