@@ -2,7 +2,9 @@
 
 A household confirm layer for voice orders. It reads the order back, asks for a time, and waits for yes. The cafe is not called until then. Pizza is three dollars. Money is fake.
 
-The chat page at `http://127.0.0.1:3002/` is a real MCP client (`initialize`, `tools/list`, `tools/call`). Talk to VoiceGate at `http://127.0.0.1:3002/mcp`, not to the cafe.
+![VoiceGate idle screen: voice session on the left, live MCP proxy on the right](docs/screenshot.png)
+
+The page at `http://127.0.0.1:3002/` is a real MCP client (`initialize`, `tools/list`, `tools/call`). Talk to VoiceGate at `http://127.0.0.1:3002/mcp`, not to the cafe.
 
 ## How it works
 
@@ -27,14 +29,14 @@ A new prepare replaces the old pending id. Tools that look read-only but would c
 
 ```bash
 npm install
-npm run check
-npm run check:proxy
-npm run check:page
-```
-
-```bash
 npm run cafe
 npm run proxy
 ```
 
-Open `http://127.0.0.1:3002/` in Chrome or Edge. Use the mic or the demo chips: Two pizzas → 8.30 → Yes.
+Open `http://127.0.0.1:3002/` in Chrome or Edge. Allow the mic, or type: two pizzas → 8.30 → Make it three → Yes.
+
+```bash
+npm run check
+npm run check:proxy
+npm run check:page
+```
