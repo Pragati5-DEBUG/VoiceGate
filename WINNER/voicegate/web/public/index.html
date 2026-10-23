@@ -4,56 +4,135 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>VoiceGate</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Manrope:wght@400;500;700;800&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="/style.css" />
   </head>
-  <body>
-    <main>
-      <header>
-        <p class="eyebrow">Typed stand-in</p>
-        <h1>VoiceGate</h1>
-        <p class="lead">
-          Type an order. It is read back and held. Nothing is placed until you confirm. Fake money only.
-        </p>
+  <body class="is-home" data-step="home">
+    <div class="page">
+      <nav>
+        <p class="brand">VoiceGate<span>.</span></p>
         <p id="status" role="status">Connecting…</p>
+      </nav>
+
+      <header class="hero">
+        <p class="pill">MCP proxy for voice orders</p>
+        <h1>Say it once. We read it back before it's placed.</h1>
+        <p class="lede">
+          A confirmation layer between your voice agent and the order system. If the agent mishears, the customer
+          catches it before anything is sent.
+        </p>
       </header>
 
-      <section class="panel" aria-labelledby="talk-title">
-        <div class="panel-head">
-          <h2 id="talk-title">Conversation</h2>
-          <p id="pending">Nothing is waiting.</p>
+      <div class="split">
+        <section class="session">
+          <div class="panel-head">
+            <span>Voice session</span>
+            <span id="session-live">Idle</span>
+          </div>
+          <div class="voice-bars" id="voice-bars" aria-hidden="true">
+            <span></span><span></span><span></span><span></span><span></span>
+            <span></span><span></span><span></span><span></span><span></span><span></span>
+          </div>
+          <p class="line-out" id="line-out">How can I help?</p>
+          <ol id="log" aria-live="polite"></ol>
+
+          <header class="chrome sr">
+            <time id="clock">--:--</time>
+            <ol class="steps" aria-label="How VoiceGate works">
+              <li id="step-order">Order</li>
+              <li id="step-time">Time</li>
+              <li id="step-confirm">Confirm</li>
+            </ol>
+          </header>
+          <p class="wordmark sr" id="wordmark">VoiceGate</p>
+          <div class="orb-wrap sr">
+            <div class="orb" id="orb" data-state="idle" aria-hidden="true">
+              <span class="orb-core"></span>
+            </div>
+          </div>
+          <p class="sr" id="stage-label">Listening</p>
+          <p class="sr" id="hint">Say how many pizzas. Nothing is placed yet.</p>
+          <p class="sr" id="heard"></p>
+          <p class="sr" id="readback">How can I help?</p>
+          <p class="sr" id="pending">Nothing is waiting.</p>
+          <div class="lightbar sr" id="lightbar" data-state="idle"></div>
+
+          <div class="card" id="order-card" hidden>
+            <p class="sr" id="card-kicker">Hold — nothing placed yet</p>
+            <p class="sr" id="card-title">Order</p>
+            <p class="sr" id="card-meta"></p>
+            <div class="gate-actions" role="group" aria-label="Confirm or cancel">
+              <button type="button" data-act="confirm" id="confirm" disabled>Yes, place it</button>
+              <button type="button" data-act="cancel" id="cancel" disabled>No</button>
+            </div>
+          </div>
+
+          <form id="composer">
+            <label class="sr" for="line">Say something</label>
+            <button type="button" id="mic" class="mic" aria-label="Use microphone" title="Use microphone">
+              <span class="mic-dot"></span>
+            </button>
+            <input id="line" name="line" autocomplete="off" placeholder="two pizzas · 8.30 · yes" />
+            <button type="submit">Go</button>
+          </form>
+          <div class="chips" role="group" aria-label="Demo phrases">
+            <button type="button" data-act="two">Two pizzas</button>
+            <button type="button" data-act="half">8.30</button>
+            <button type="button" data-act="three">Make it three</button>
+            <button type="button" data-act="confirm">Yes</button>
+          </div>
+        </section>
+
+        <aside class="proxy">
+          <div class="panel-head">
+            <span>MCP proxy</span>
+            <span>Live</span>
+          </div>
+          <div class="proxy-card" id="proxy-prepare" data-state="idle">
+            <div class="proxy-row">
+              <span class="tool">prepare_action</span>
+              <span class="state" id="proxy-prepare-state">Waiting</span>
+            </div>
+            <p id="proxy-prepare-detail">Nothing is held yet.</p>
+          </div>
+          <div class="proxy-card" id="proxy-time" data-state="idle">
+            <div class="proxy-row">
+              <span class="tool">when</span>
+              <span class="state" id="proxy-time-state">Needed</span>
+            </div>
+            <p id="proxy-time-detail">Say a time after the order.</p>
+          </div>
+          <div class="proxy-card" id="proxy-confirm" data-state="idle">
+            <div class="proxy-row">
+              <span class="tool">confirm_action</span>
+              <span class="state" id="proxy-confirm-state">Blocked</span>
+            </div>
+            <p id="proxy-confirm-detail">Nothing is placed until the customer confirms.</p>
+          </div>
+          <p class="proxy-foot">
+            <span class="dot"></span>
+            Nothing is placed until the customer confirms
+          </p>
+        </aside>
+      </div>
+
+      <details class="trail">
+        <summary>Audit</summary>
+        <div class="chips extra" role="group" aria-label="More demo phrases">
+          <button type="button" data-act="hours">Hours</button>
+          <button type="button" data-act="forty">Over limit</button>
+          <button type="button" data-act="undo">Undo</button>
+          <button type="button" data-act="trap">Trap: get order</button>
+          <button type="button" data-act="menu">Menu</button>
         </div>
-        <ol id="log" aria-live="polite"></ol>
-      </section>
-
-      <form id="composer">
-        <label class="sr" for="line">Say something</label>
-        <input
-          id="line"
-          name="line"
-          autocomplete="off"
-          placeholder="two pizzas, make it three, confirm, cancel"
-        />
-        <button type="submit">Send</button>
-      </form>
-
-      <div class="actions" role="group" aria-label="Actions">
-        <button type="button" data-act="hours">Hours</button>
-        <button type="button" data-act="two">Two pizzas</button>
-        <button type="button" data-act="three">Make it three</button>
-        <button type="button" data-act="confirm" id="confirm">Confirm</button>
-        <button type="button" data-act="cancel" id="cancel">Cancel</button>
-      </div>
-      <div class="actions secondary" role="group" aria-label="Demo extras">
-        <button type="button" data-act="menu">Menu</button>
-        <button type="button" data-act="twenty">Twenty pizzas</button>
-        <button type="button" data-act="trap">Trap: get order of twenty</button>
-      </div>
-
-      <section class="panel" aria-labelledby="audit-title">
-        <h2 id="audit-title">Audit log</h2>
         <pre id="audit">Audit log is empty.</pre>
-      </section>
-    </main>
+      </details>
+    </div>
     <script type="module" src="/app.js"></script>
   </body>
 </html>

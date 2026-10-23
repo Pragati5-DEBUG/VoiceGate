@@ -7,6 +7,7 @@ export type PendingAction = {
   tool: string;
   quantity?: number;
   orderId?: string;
+  when?: string;
   speakable: string;
   expiresAt: string;
 };
@@ -54,6 +55,14 @@ export function savePending(input: Omit<PendingAction, "id" | "expiresAt">): {
   };
   writeStore({ nextId: store.nextId + 1, pending: [action] });
   return { action, replacedIds };
+}
+
+export function peekPending(id: string): PendingAction | undefined {
+  return readStore().pending.find((action) => action.id === id);
+}
+
+export function currentPending(): PendingAction | undefined {
+  return readStore().pending[0];
 }
 
 export function takePending(id: string): { action: PendingAction } | { error: string } {

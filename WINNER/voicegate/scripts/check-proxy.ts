@@ -6,6 +6,7 @@ import { startCafeServer } from "../cafe-server/src/index.js";
 import { MENU_TEXT, readOrders, writeOrders } from "../cafe-server/src/orders.js";
 import { clearAudit } from "../proxy/src/audit.js";
 import { toolText } from "../proxy/src/cafe-client.js";
+import { clearLast } from "../proxy/src/last.js";
 import { clearPending } from "../proxy/src/pending.js";
 import { startVoiceGate } from "../proxy/src/index.js";
 
@@ -23,6 +24,7 @@ function pendingIdFrom(text: string): string {
 
 writeOrders([]);
 clearPending();
+clearLast();
 
 const cafeUrl = "http://127.0.0.1:3001/mcp";
 const cafe = await startCafeServer(3001);
@@ -44,7 +46,15 @@ try {
   }
 
   const names = (await client.listTools()).tools.map((tool) => tool.name).sort();
-  const expected = ["cancel_action", "confirm_action", "get_audit_log", "get_hours", "get_menu", "prepare_action"];
+  const expected = [
+    "cancel_action",
+    "confirm_action",
+    "get_audit_log",
+    "get_hours",
+    "get_menu",
+    "prepare_action",
+    "undo_last_action",
+  ];
   if (names.join() !== expected.join()) {
     throw new Error(`proxy exposed the wrong tools: ${names.join(", ")}`);
   }
@@ -59,8 +69,19 @@ try {
     throw new Error(`get_menu did not pass through: ${menu}`);
   }
 
-  const prepared = textOf(
+  const asked = textOf(
     await client.callTool({ name: "prepare_action", arguments: { tool: "place_order", quantity: 2 } }),
+  );
+  const askedId = pendingIdFrom(asked);
+  if (!asked.includes("Two pizzas, six dollars. What time?") || readOrders().length !== 0) {
+    throw new Error(`prepare did not ask for a time: ${asked}`);
+  }
+  const tooSoon = textOf(await client.callTool({ name: "confirm_action", arguments: { pendingId: askedId } }));
+  if (!tooSoon.includes("Say a time first") || readOrders().length !== 0) {
+    throw new Error(`confirm ran before a time was set: ${tooSoon}`);
+  }
+  const prepared = textOf(
+    await client.callTool({ name: "prepare_action", arguments: { tool: "place_order", when: "seven" } }),
   );
   const pendingId = pendingIdFrom(prepared);
   if (!prepared.includes("Two pizzas, six dollars, at seven. Say confirm or cancel.") || readOrders().length !== 0) {
@@ -97,7 +118,7 @@ try {
     await client.callTool({ name: "prepare_action", arguments: { tool: "get_order", quantity: 20 } }),
   );
   const trapId = pendingIdFrom(trap);
-  if (!trap.includes("Twenty pizzas, sixty dollars, at seven.") || !trap.includes("looks read-only") || readOrders().length !== 0) {
+  if (!trap.includes("Twenty pizzas, sixty dollars. What time?") || !trap.includes("looks read-only") || readOrders().length !== 0) {
     throw new Error(`get_order trap was sent to the cafe: ${trap}`);
   }
   const dropped = textOf(await client.callTool({ name: "cancel_action", arguments: { pendingId: trapId } }));
@@ -109,20 +130,24 @@ try {
   const twenty = textOf(
     await client.callTool({ name: "prepare_action", arguments: { tool: "place_order", quantity: 20 } }),
   );
-  const twentyId = pendingIdFrom(twenty);
+  pendingIdFrom(twenty);
+  const timedTwenty = textOf(
+    await client.callTool({ name: "prepare_action", arguments: { tool: "place_order", when: "seven" } }),
+  );
+  const timedTwentyId = pendingIdFrom(timedTwenty);
   const corrected = textOf(
     await client.callTool({ name: "prepare_action", arguments: { tool: "place_order", quantity: 3 } }),
   );
   const threeId = pendingIdFrom(corrected);
   if (
-    twentyId === threeId ||
+    timedTwentyId === threeId ||
     !corrected.includes("Three pizzas, nine dollars, at seven.") ||
-    !corrected.includes(`Replaced pending ${twentyId}.`) ||
+    !corrected.includes(`Replaced pending ${timedTwentyId}.`) ||
     readOrders().length !== 0
   ) {
     throw new Error(`correction did not replace the pending order: ${corrected}`);
   }
-  const stale = textOf(await client.callTool({ name: "confirm_action", arguments: { pendingId: twentyId } }));
+  const stale = textOf(await client.callTool({ name: "confirm_action", arguments: { pendingId: timedTwentyId } }));
   if (!stale.includes("No pending action") || readOrders().length !== 0) {
     throw new Error(`old pending id still confirmed: ${stale}`);
   }
@@ -134,7 +159,7 @@ try {
   const log = textOf(await client.callTool({ name: "get_audit_log", arguments: {} }));
   const preparedLines = log.split("\n").filter((line) => line.startsWith("prepared place_order"));
   const confirmedLines = log.split("\n").filter((line) => line.startsWith("confirmed place_order"));
-  if (preparedLines.length !== 2 || confirmedLines.length !== 1 || !log.includes("quantity 20") || !log.includes("quantity 3")) {
+  if (preparedLines.length !== 3 || confirmedLines.length !== 1 || !log.includes("quantity 20") || !log.includes("quantity 3")) {
     throw new Error(`audit log is wrong:\n${log}`);
   }
   const cleanupId = pendingIdFrom(
@@ -157,6 +182,30 @@ try {
   } catch {
     hidden = true;
   }
+  const over = textOf(
+    await client.callTool({ name: "prepare_action", arguments: { tool: "place_order", quantity: 40 } }),
+  );
+  if (!over.includes("household limit") || readOrders().length !== 0) {
+    throw new Error(`over-limit prepare failed: ${over}`);
+  }
+
+  const undoPrep = pendingIdFrom(
+    textOf(
+      await client.callTool({
+        name: "prepare_action",
+        arguments: { tool: "place_order", quantity: 2, when: "seven" },
+      }),
+    ),
+  );
+  await client.callTool({ name: "confirm_action", arguments: { pendingId: undoPrep } });
+  if (readOrders().length !== 1) {
+    throw new Error("undo setup did not place an order");
+  }
+  const undone = textOf(await client.callTool({ name: "undo_last_action", arguments: {} }));
+  if (!undone.includes("Undone") || readOrders().length !== 0) {
+    throw new Error(`undo failed: ${undone}`);
+  }
+
   if (!hidden || readOrders().length !== 0) {
     throw new Error("place_order was callable on VoiceGate");
   }

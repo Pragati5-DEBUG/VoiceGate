@@ -3,7 +3,9 @@ import { z } from "zod";
 import { auditText, writeAudit } from "./audit.js";
 import { callCafe } from "./cafe-client.js";
 import { classifyTool } from "./classify.js";
-import { savePending, takePending } from "./pending.js";
+import { clearLast, readLast, saveLast, UNDO_WINDOW_MS } from "./last.js";
+import { blockReadback, overCap } from "./limit.js";
+import { currentPending, peekPending, savePending, takePending } from "./pending.js";
 import { cancelReadback, pizzaReadback } from "./readback.js";
 
 const readOnly = {
@@ -78,10 +80,20 @@ export function createVoiceGateServer(cafeUrl: string): McpServer {
         tool: z.string().describe("Cafe tool name, such as place_order or get_order"),
         quantity: z.number().int().min(1).max(40).optional().describe("How many pizzas"),
         orderId: z.string().optional().describe("Order id for cancel_order"),
+        when: z.string().optional().describe("Ready time, such as seven"),
       }),
       annotations: held,
     },
-    async ({ tool, quantity, orderId }) => {
+    async ({ tool, quantity, orderId, when }) => {
+      const held = currentPending();
+      if ((tool === "place_order" || tool === "get_order") && quantity === undefined && held?.quantity !== undefined) {
+        quantity = held.quantity;
+        tool = held.tool;
+        orderId = held.orderId;
+      }
+      if ((tool === "place_order" || tool === "get_order") && !when && held?.when && held.tool === tool) {
+        when = held.when;
+      }
       const decision = classifyTool(tool);
       if (decision.pass) {
         const text = await callCafe(cafeUrl, tool, cafeArgs(quantity, orderId));
@@ -93,15 +105,29 @@ export function createVoiceGateServer(cafeUrl: string): McpServer {
       if (tool === "cancel_order" && orderId === undefined) {
         return { content: [{ type: "text" as const, text: "Say which order to cancel." }], isError: true };
       }
+      if ((tool === "place_order" || tool === "get_order") && quantity !== undefined && overCap(quantity)) {
+        writeAudit({
+          pendingId: "none",
+          tool,
+          decision: "blocked",
+          arguments: { quantity, when },
+        });
+        return {
+          content: [{ type: "text" as const, text: blockReadback(quantity) }],
+          isError: true,
+        };
+      }
 
       const speakable =
-        tool === "cancel_order" && orderId !== undefined ? cancelReadback(orderId) : pizzaReadback(quantity ?? 1);
-      const { action: pending, replacedIds } = savePending({ tool, quantity, orderId, speakable });
+        tool === "cancel_order" && orderId !== undefined
+          ? cancelReadback(orderId)
+          : pizzaReadback(quantity ?? 1, when);
+      const { action: pending, replacedIds } = savePending({ tool, quantity, orderId, when, speakable });
       writeAudit({
         pendingId: pending.id,
         tool,
         decision: "prepared",
-        arguments: { quantity, orderId },
+        arguments: { quantity, orderId, when },
       });
       const trapNote = decision.reason.includes("looks read-only") ? `\n${decision.reason}` : "";
       const replacedNote = replacedIds.length > 0 ? `\nReplaced pending ${replacedIds.join(", ")}.` : "";
@@ -124,17 +150,28 @@ export function createVoiceGateServer(cafeUrl: string): McpServer {
       annotations: held,
     },
     async ({ pendingId }) => {
+      const held = peekPending(pendingId);
+      if (held && (held.tool === "place_order" || held.tool === "get_order") && !held.when) {
+        return {
+          content: [{ type: "text" as const, text: "Say a time first. Nothing was placed." }],
+          isError: true,
+        };
+      }
       const taken = takePending(pendingId);
       if ("error" in taken) {
         return { content: [{ type: "text" as const, text: taken.error }], isError: true };
       }
       const { action } = taken;
       const text = await callCafe(cafeUrl, action.tool, cafeArgs(action.quantity, action.orderId));
+      const placed = /^Order (\d+) placed\./.exec(text);
+      if (placed?.[1] && (action.tool === "place_order" || action.tool === "get_order")) {
+        saveLast(placed[1]);
+      }
       writeAudit({
         pendingId: action.id,
         tool: action.tool,
         decision: "confirmed",
-        arguments: { quantity: action.quantity, orderId: action.orderId },
+        arguments: { quantity: action.quantity, orderId: action.orderId, when: action.when },
       });
       return { content: [{ type: "text" as const, text }] };
     },
@@ -162,6 +199,37 @@ export function createVoiceGateServer(cafeUrl: string): McpServer {
         arguments: { quantity: taken.action.quantity, orderId: taken.action.orderId },
       });
       return { content: [{ type: "text" as const, text: "Cancelled. Nothing was ordered." }] };
+    },
+  );
+
+  server.registerTool(
+    "undo_last_action",
+    {
+      title: "Undo last confirm",
+      description: "Cancel the last placed order if it is still inside the short undo window.",
+      inputSchema: z.object({}),
+      annotations: held,
+    },
+    async () => {
+      const last = readLast();
+      if (!last) {
+        return { content: [{ type: "text" as const, text: "Nothing to undo." }], isError: true };
+      }
+      if (Date.now() - last.at > UNDO_WINDOW_MS) {
+        return {
+          content: [{ type: "text" as const, text: "The undo window closed. The order stays." }],
+          isError: true,
+        };
+      }
+      const text = await callCafe(cafeUrl, "cancel_order", { orderId: last.orderId });
+      clearLast();
+      writeAudit({
+        pendingId: "none",
+        tool: "cancel_order",
+        decision: "undone",
+        arguments: { orderId: last.orderId },
+      });
+      return { content: [{ type: "text" as const, text: `Undone. ${text}` }] };
     },
   );
 

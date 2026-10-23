@@ -2,11 +2,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-export type AuditDecision = "prepared" | "confirmed" | "cancelled";
+export type AuditDecision = "prepared" | "confirmed" | "cancelled" | "blocked" | "undone";
 
 type AuditArguments = {
   quantity?: number;
   orderId?: string;
+  when?: string;
 };
 
 type AuditEntry = {
